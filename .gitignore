@@ -1,0 +1,43 @@
+# Chrome Extension - gitignore
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Chrome Extension specific
+# (Keep all source files since this is loaded directly)
+# Only ignore dev/test artifacts if any exist
+
+# Personal/sensitive
+.env
+*.key
+*.pem
+
+# Node modules (if you ever add build tools)
+node_modules/
+package-lock.json
+
+# Build outputs (not needed for this extension currently)
+dist/
+build/
+
+# Test files
+test/
+*.test.js

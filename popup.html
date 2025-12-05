@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REM Network Miner</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" stroke="url(#gradient)" stroke-width="2" />
+                    <path d="M16 8 L20 16 L16 24 L12 16 Z" fill="url(#gradient)" />
+                    <defs>
+                        <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
+                            <stop offset="0%" stop-color="#667eea" />
+                            <stop offset="100%" stop-color="#764ba2" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span>REM Miner</span>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Offline</span>
+            </div>
+        </header>
+
+        <!-- Main Stats -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-content">
+                    <div class="stat-label">RAM Committed</div>
+                    <div class="stat-value" id="ramCommitted">-- GB</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-content">
+                    <div class="stat-label">Vectors Stored</div>
+                    <div class="stat-value" id="vectorsStored">--</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">⏰</div>
+                <div class="stat-content">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="uptime">--</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">🔍</div>
+                <div class="stat-content">
+                    <div class="stat-label">Queries Served</div>
+                    <div class="stat-value" id="queriesServed">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bars -->
+        <div class="progress-section">
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span>Storage Usage</span>
+                    <span id="storagePercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="storageFill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Earnings Section -->
+        <div class="earnings-section">
+            <div class="earnings-header">
+                <span class="earnings-icon">💰</span>
+                <span class="earnings-title">Earnings (This Epoch)</span>
+            </div>
+            <div class="earnings-value">
+                <span id="earningsAmount">0</span>
+                <span class="earnings-currency">REM</span>
+            </div>
+            <div class="earnings-subtext">Next payout in: <span id="nextPayout">--</span></div>
+        </div>
+
+        <!-- Wallet Info -->
+        <div class="wallet-section" id="walletSection">
+            <div class="wallet-header">
+                <span>💼</span>
+                <span>Wallet Address</span>
+            </div>
+            <div class="wallet-address" id="walletAddress">
+                Not configured
+            </div>
+        </div>
+
+        <!-- Referral Code Section -->
+        <div class="wallet-section" id="referralSection">
+            <div class="wallet-header">
+                <span>🔗</span>
+                <span>Referral Code</span>
+            </div>
+            <div class="referral-container">
+                <div class="wallet-address" id="referralCode">
+                    Loading...
+                </div>
+                <button class="btn-copy" id="copyReferralBtn" title="Copy referral code">
+                    📋
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <button class="btn btn-primary" id="settingsBtn">
+                <span>⚙️</span>
+                <span>Settings</span>
+            </button>
+            <button class="btn btn-secondary" id="statsBtn">
+                <span>📊</span>
+                <span>Details</span>
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="popup.js" type="module"></script>
+</body>
+
+</html>
