@@ -25,11 +25,57 @@
                 </svg>
                 <span>REM Miner</span>
             </div>
-            <div class="status-indicator" id="statusIndicator">
-                <span class="status-dot"></span>
-                <span class="status-text">Offline</span>
+            <div class="header-controls">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+                <label class="toggle-switch" id="minerToggle">
+                    <input type="checkbox" id="minerToggleInput" checked>
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
         </header>
+
+        <!-- Wallet Info -->
+        <div class="wallet-section" id="walletSection">
+            <div class="wallet-header">
+                <span>💼</span>
+                <span>Wallet Address</span>
+            </div>
+            <div class="wallet-address" id="walletAddress">
+                Not configured
+            </div>
+        </div>
+
+        <!-- Referral Code Section -->
+        <div class="wallet-section" id="referralSection">
+            <div class="wallet-header">
+                <span>🔗</span>
+                <span>Referral Code/Node ID</span>
+            </div>
+            <div class="referral-container">
+                <div class="wallet-address" id="referralCode">
+                    Loading...
+                </div>
+                <button class="btn-copy" id="copyReferralBtn" title="Copy referral code">
+                    📋
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Bars -->
+        <div class="progress-section">
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span>Storage Usage</span>
+                    <span id="storagePercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="storageFill"></div>
+                </div>
+            </div>
+        </div>
 
         <!-- Main Stats -->
         <div class="stats-grid" id="statsGrid">
@@ -63,59 +109,6 @@
                     <div class="stat-label">Queries Served</div>
                     <div class="stat-value" id="queriesServed">--</div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Progress Bars -->
-        <div class="progress-section">
-            <div class="progress-item">
-                <div class="progress-header">
-                    <span>Storage Usage</span>
-                    <span id="storagePercent">0%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="storageFill"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Earnings Section -->
-        <div class="earnings-section">
-            <div class="earnings-header">
-                <span class="earnings-icon">💰</span>
-                <span class="earnings-title">Earnings (This Epoch)</span>
-            </div>
-            <div class="earnings-value">
-                <span id="earningsAmount">0</span>
-                <span class="earnings-currency">REM</span>
-            </div>
-            <div class="earnings-subtext">Next payout in: <span id="nextPayout">--</span></div>
-        </div>
-
-        <!-- Wallet Info -->
-        <div class="wallet-section" id="walletSection">
-            <div class="wallet-header">
-                <span>💼</span>
-                <span>Wallet Address</span>
-            </div>
-            <div class="wallet-address" id="walletAddress">
-                Not configured
-            </div>
-        </div>
-
-        <!-- Referral Code Section -->
-        <div class="wallet-section" id="referralSection">
-            <div class="wallet-header">
-                <span>🔗</span>
-                <span>Referral Code</span>
-            </div>
-            <div class="referral-container">
-                <div class="wallet-address" id="referralCode">
-                    Loading...
-                </div>
-                <button class="btn-copy" id="copyReferralBtn" title="Copy referral code">
-                    📋
-                </button>
             </div>
         </div>
 

@@ -11,14 +11,15 @@ const uptime = document.getElementById('uptime');
 const queriesServed = document.getElementById('queriesServed');
 const storagePercent = document.getElementById('storagePercent');
 const storageFill = document.getElementById('storageFill');
-const earningsAmount = document.getElementById('earningsAmount');
-const nextPayout = document.getElementById('nextPayout');
 const walletAddress = document.getElementById('walletAddress');
 const referralCode = document.getElementById('referralCode');
 const copyReferralBtn = document.getElementById('copyReferralBtn');
+const minerToggleInput = document.getElementById('minerToggleInput');
 const settingsBtn = document.getElementById('settingsBtn');
 const statsBtn = document.getElementById('statsBtn');
 const loadingOverlay = document.getElementById('loadingOverlay');
+
+let isMinerRunning = true; // Track miner state
 
 /**
  * Initialize popup
@@ -59,6 +60,30 @@ async function init() {
             }
         }
     });
+
+    // Miner toggle handler
+    minerToggleInput.addEventListener('change', async (e) => {
+        const shouldRun = e.target.checked;
+        minerToggleInput.disabled = true; // Disable during operation
+
+        try {
+            if (shouldRun) {
+                console.log('[Popup] Starting miner...');
+                await sendMessage({ type: 'startMiner' });
+                isMinerRunning = true;
+            } else {
+                console.log('[Popup] Stopping miner...');
+                await sendMessage({ type: 'stopMiner' });
+                isMinerRunning = false;
+            }
+        } catch (error) {
+            console.error('[Popup] Error toggling miner:', error);
+            // Revert toggle on error
+            minerToggleInput.checked = !shouldRun;
+        } finally {
+            minerToggleInput.disabled = false;
+        }
+    });
 }
 
 /**
@@ -80,16 +105,28 @@ async function updateStats() {
  * Update UI with stats
  */
 function updateUI(stats) {
-    // Update status indicator
+    // Update status indicator and sync toggle
     if (stats.connected && stats.registered) {
         statusIndicator.classList.add('online');
         statusIndicator.querySelector('.status-text').textContent = 'Online';
+        if (!minerToggleInput.disabled) {
+            minerToggleInput.checked = true;
+        }
+        isMinerRunning = true;
     } else if (stats.connected) {
         statusIndicator.classList.remove('online');
         statusIndicator.querySelector('.status-text').textContent = 'Connecting...';
+        if (!minerToggleInput.disabled) {
+            minerToggleInput.checked = true;
+        }
+        isMinerRunning = true;
     } else {
         statusIndicator.classList.remove('online');
         statusIndicator.querySelector('.status-text').textContent = 'Offline';
+        // Only update toggle if miner is actually stopped (not just disconnected)
+        if (!isMinerRunning && !minerToggleInput.disabled) {
+            minerToggleInput.checked = false;
+        }
     }
 
     // Update RAM committed
@@ -129,17 +166,6 @@ function updateUI(stats) {
     } else {
         referralCode.textContent = 'Not available';
     }
-
-    // Update earnings (mock calculation - replace with real from coordinator)
-    if (stats.engine_stats && stats.queriesServed !== undefined) {
-        const baseReward = stats.engine_stats.total_vectors * 0.01;
-        const queryBonus = stats.queriesServed * 0.5;
-        const totalEarnings = Math.floor(baseReward + queryBonus);
-        earningsAmount.textContent = formatNumber(totalEarnings);
-    }
-
-    // Calculate next payout time (mock - replace with real epoch time)
-    updateNextPayout();
 }
 
 /**
@@ -157,22 +183,6 @@ function formatNumber(num) {
 function formatAddress(address) {
     if (!address || address.length < 20) return address;
     return `${address.slice(0, 10)}...${address.slice(-8)}`;
-}
-
-/**
- * Update next payout countdown
- */
-function updateNextPayout() {
-    // Epochs are 1 hour, calculate time until next hour
-    const now = new Date();
-    const nextHour = new Date(now);
-    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
-
-    const diff = nextHour - now;
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-
-    nextPayout.textContent = `${minutes}m ${seconds}s`;
 }
 
 /**
