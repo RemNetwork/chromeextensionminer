@@ -69,17 +69,37 @@ async function init() {
         try {
             if (shouldRun) {
                 console.log('[Popup] Starting miner...');
-                await sendMessage({ type: 'startMiner' });
-                isMinerRunning = true;
+                const response = await sendMessage({ type: 'startMiner' });
+                
+                if (response.success) {
+                    isMinerRunning = true;
+                    console.log('[Popup] Miner started successfully');
+                } else {
+                    // Miner failed to start - turn toggle off
+                    console.error('[Popup] Failed to start miner:', response.error);
+                    minerToggleInput.checked = false;
+                    isMinerRunning = false;
+                    alert(`Failed to start miner: ${response.error || 'Unknown error'}`);
+                }
             } else {
                 console.log('[Popup] Stopping miner...');
-                await sendMessage({ type: 'stopMiner' });
-                isMinerRunning = false;
+                const response = await sendMessage({ type: 'stopMiner' });
+                
+                if (response.success) {
+                    isMinerRunning = false;
+                    console.log('[Popup] Miner stopped successfully');
+                } else {
+                    console.error('[Popup] Failed to stop miner:', response.error);
+                    // Keep toggle as user intended (off)
+                    isMinerRunning = false;
+                }
             }
         } catch (error) {
             console.error('[Popup] Error toggling miner:', error);
             // Revert toggle on error
             minerToggleInput.checked = !shouldRun;
+            isMinerRunning = !shouldRun;
+            alert(`Error: ${error.message || 'Failed to toggle miner'}`);
         } finally {
             minerToggleInput.disabled = false;
         }
@@ -105,15 +125,18 @@ async function updateStats() {
  * Update UI with stats
  */
 function updateUI(stats) {
+    // Check if miner actually exists (not null)
+    const minerExists = stats && !stats.message;
+    
     // Update status indicator and sync toggle
-    if (stats.connected && stats.registered) {
+    if (minerExists && stats.connected && stats.registered) {
         statusIndicator.classList.add('online');
         statusIndicator.querySelector('.status-text').textContent = 'Online';
         if (!minerToggleInput.disabled) {
             minerToggleInput.checked = true;
         }
         isMinerRunning = true;
-    } else if (stats.connected) {
+    } else if (minerExists && stats.connected) {
         statusIndicator.classList.remove('online');
         statusIndicator.querySelector('.status-text').textContent = 'Connecting...';
         if (!minerToggleInput.disabled) {
@@ -121,11 +144,17 @@ function updateUI(stats) {
         }
         isMinerRunning = true;
     } else {
+        // Miner not running or failed
         statusIndicator.classList.remove('online');
-        statusIndicator.querySelector('.status-text').textContent = 'Offline';
-        // Only update toggle if miner is actually stopped (not just disconnected)
-        if (!isMinerRunning && !minerToggleInput.disabled) {
+        if (stats && stats.message === 'Miner not running') {
+            statusIndicator.querySelector('.status-text').textContent = 'Stopped';
+        } else {
+            statusIndicator.querySelector('.status-text').textContent = 'Offline';
+        }
+        // Turn toggle off if miner is not running
+        if (!minerExists && !minerToggleInput.disabled) {
             minerToggleInput.checked = false;
+            isMinerRunning = false;
         }
     }
 

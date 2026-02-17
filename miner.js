@@ -38,14 +38,31 @@ export class WebSocketMiner {
     async start() {
         console.log('[Miner] Starting miner...');
 
-        // Initialize vector engine
-        await this.engine.init();
+        try {
+            // Initialize vector engine
+            await this.engine.init();
 
-        // Initialize PoRAM
-        await this.poram.initialize();
+            // Initialize PoRAM
+            await this.poram.initialize();
 
-        // Connect to coordinator
-        await this.connect();
+            // Connect to coordinator
+            await this.connect();
+        } catch (error) {
+            console.error('[Miner] Failed to start miner:', error);
+            // Cleanup on failure
+            try {
+                if (this.poram && this.poram.initialized) {
+                    this.poram.cleanup();
+                }
+                if (this.engine) {
+                    // Engine cleanup if needed
+                }
+            } catch (cleanupError) {
+                console.error('[Miner] Error during cleanup:', cleanupError);
+            }
+            // Re-throw to let background.js handle it
+            throw error;
+        }
     }
 
     /**
@@ -63,8 +80,9 @@ export class WebSocketMiner {
             this.ws = new WebSocket(this.config.coordinator_url);
 
             this.ws.onopen = async () => {
-                console.log('[Miner] ✅ Connected to coordinator');
+                console.log('[Miner] ✅ WebSocket opened, connecting to coordinator...');
                 this.connected = true;
+                this.registered = false; // Reset registration status on new connection
                 await this.register();
             };
 
@@ -82,8 +100,12 @@ export class WebSocketMiner {
                 this.connected = false;
             };
 
-            this.ws.onclose = () => {
-                console.log('[Miner] Disconnected from coordinator');
+            this.ws.onclose = (event) => {
+                console.log('[Miner] Disconnected from coordinator', {
+                    code: event.code,
+                    reason: event.reason || 'No reason provided',
+                    wasClean: event.wasClean
+                });
                 this.connected = false;
                 this.registered = false;
 
@@ -132,14 +154,16 @@ export class WebSocketMiner {
 
         this.send(registerMsg);
 
-        // Wait for confirmation (if we start receiving heartbeats, we're registered)
+        // Set a timeout to retry if no response received
+        // The actual registration confirmation will come via handleRegisterResponse
         setTimeout(() => {
             if (!this.registered) {
-                console.log('[Miner] ✅ Registration successful (no error received)');
-                this.registered = true;
-                this.startHeartbeat();
+                console.warn('[Miner] ⚠️ No registration response received after 10 seconds, retrying...');
+                // Don't set registered = true here - wait for actual confirmation
+                // Retry registration
+                this.register();
             }
-        }, 2000);
+        }, 10000);
     }
 
     /**
@@ -163,7 +187,21 @@ export class WebSocketMiner {
      * Send heartbeat message
      */
     sendHeartbeat() {
-        if (!this.connected) return;
+        if (!this.connected || !this.registered) {
+            if (!this.connected) {
+                console.warn('[Miner] ⚠️ Cannot send heartbeat: not connected');
+            } else if (!this.registered) {
+                console.warn('[Miner] ⚠️ Cannot send heartbeat: not registered');
+            }
+            return;
+        }
+
+        // Check WebSocket state before sending
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.warn('[Miner] ⚠️ WebSocket not open, marking as disconnected');
+            this.connected = false;
+            return;
+        }
 
         const heartbeat = {
             type: 'heartbeat',
@@ -173,13 +211,20 @@ export class WebSocketMiner {
             timestamp: new Date().toISOString()
         };
 
-        this.send(heartbeat);
-        this.stats.lastHeartbeat = new Date().toISOString();
+        try {
+            this.send(heartbeat);
+            this.stats.lastHeartbeat = new Date().toISOString();
 
-        console.log('[Miner] ❤️ Heartbeat sent:', {
-            vectors: heartbeat.vectors_stored,
-            bytes: heartbeat.bytes_used
-        });
+            console.log('[Miner] ❤️ Heartbeat sent:', {
+                vectors: heartbeat.vectors_stored,
+                bytes: heartbeat.bytes_used,
+                registered: this.registered,
+                connected: this.connected
+            });
+        } catch (error) {
+            console.error('[Miner] Error sending heartbeat:', error);
+            this.connected = false;
+        }
     }
 
     /**
@@ -191,6 +236,10 @@ export class WebSocketMiner {
         console.log(`[Miner] Received message: ${type}`);
 
         switch (type) {
+            case 'register_response':
+                await this.handleRegisterResponse(message);
+                break;
+
             case 'store_request':
                 await this.handleStore(message);
                 break;
@@ -203,18 +252,56 @@ export class WebSocketMiner {
                 await this.handleChallenge(message);
                 break;
 
+            case 'fetch_request':
+                await this.handleFetch(message);
+                break;
+
+            case 'delete_request':
+                await this.handleDelete(message);
+                break;
+
             case 'error':
                 console.error('[Miner] Error from coordinator:', message.error_message);
                 // If registration error, try again
                 if (message.error_message.includes('secret') ||
-                    message.error_message.includes('signature')) {
+                    message.error_message.includes('signature') ||
+                    message.error_message.includes('registration')) {
                     console.log('[Miner] Registration failed, retrying in 10s...');
+                    this.registered = false;
                     setTimeout(() => this.register(), 10000);
                 }
                 break;
 
             default:
                 console.warn('[Miner] Unknown message type:', type);
+        }
+    }
+
+    /**
+     * Handle registration response from coordinator
+     */
+    async handleRegisterResponse(message) {
+        console.log('[Miner] Received registration response:', message);
+
+        if (message.status === 'ok') {
+            console.log('[Miner] ✅ Registration confirmed by coordinator');
+            this.registered = true;
+            
+            // Start heartbeats now that we're registered
+            if (!this.heartbeatInterval) {
+                this.startHeartbeat();
+            }
+        } else {
+            console.error('[Miner] Registration failed:', message.message || 'Unknown error');
+            this.registered = false;
+            
+            // Retry registration after delay
+            setTimeout(() => {
+                if (!this.registered) {
+                    console.log('[Miner] Retrying registration...');
+                    this.register();
+                }
+            }, 5000);
         }
     }
 
@@ -330,33 +417,125 @@ export class WebSocketMiner {
      * Handle PoRAM challenge
      */
     async handleChallenge(request) {
-        console.log('[Miner] Handling PoRAM challenge:', {
+        console.log('[Miner] 🎯 Handling PoRAM challenge:', {
             challenge_id: request.challenge_id,
-            offsets: request.offsets.length,
-            chunk_size: request.chunk_size
+            offsets: request.offsets?.length || 0,
+            chunk_size: request.chunk_size,
+            deadline_ms: request.deadline_ms,
+            epoch_seed: request.epoch_seed ? request.epoch_seed.substring(0, 16) + '...' : 'missing',
+            registered: this.registered,
+            connected: this.connected
         });
+
+        if (!this.registered) {
+            console.error('[Miner] ❌ Received challenge but not registered! This should not happen.');
+        }
 
         try {
             const response = await this.poram.handleChallenge(request);
 
             // Send response
-            this.send({
+            const responseMsg = {
                 type: 'challenge_response',
                 ...response
-            });
+            };
+            
+            this.send(responseMsg);
 
             this.stats.challengesCompleted++;
 
-            console.log('[Miner] ✅ Challenge response sent');
+            console.log('[Miner] ✅ Challenge response sent:', {
+                challenge_id: response.challenge_id,
+                chunks_count: response.chunks?.length || 0,
+                response_time_ms: response.response_time_ms
+            });
 
         } catch (error) {
-            console.error('[Miner] Challenge error:', error);
+            console.error('[Miner] ❌ Challenge error:', error);
 
             this.send({
                 type: 'challenge_response',
                 challenge_id: request.challenge_id,
                 chunks: [],
                 response_time_ms: 0
+            });
+        }
+    }
+
+    /**
+     * Handle fetch request (retrieve vectors by ID)
+     */
+    async handleFetch(request) {
+        console.log('[Miner] Handling fetch request:', {
+            request_id: request.request_id,
+            collection_id: request.collection_id,
+            doc_count: request.doc_ids.length
+        });
+
+        try {
+            const vectors = this.engine.fetchVectors(
+                request.collection_id,
+                request.doc_ids
+            );
+
+            this.send({
+                type: 'fetch_response',
+                request_id: request.request_id,
+                node_id: this.config.node_id,
+                vectors: vectors,
+                status: 'ok'
+            });
+
+            console.log(`[Miner] ✅ Fetched ${vectors.length} vectors`);
+        } catch (error) {
+            console.error('[Miner] Fetch error:', error);
+
+            this.send({
+                type: 'fetch_response',
+                request_id: request.request_id,
+                node_id: this.config.node_id,
+                vectors: [],
+                status: 'error',
+                error_message: error.message
+            });
+        }
+    }
+
+    /**
+     * Handle delete request (remove vectors by ID)
+     */
+    async handleDelete(request) {
+        console.log('[Miner] Handling delete request:', {
+            request_id: request.request_id,
+            collection_id: request.collection_id,
+            doc_count: request.doc_ids.length
+        });
+
+        try {
+            const deletedCount = await this.engine.deleteVectors(
+                request.collection_id,
+                request.doc_ids
+            );
+
+            this.send({
+                type: 'delete_response',
+                request_id: request.request_id,
+                node_id: this.config.node_id,
+                deleted_count: deletedCount,
+                status: 'ok'
+            });
+
+            console.log(`[Miner] ✅ Deleted ${deletedCount} vectors`);
+        } catch (error) {
+            console.error('[Miner] Delete error:', error);
+
+            this.send({
+                type: 'delete_response',
+                request_id: request.request_id,
+                node_id: this.config.node_id,
+                deleted_count: 0,
+                status: 'error',
+                error_message: error.message
             });
         }
     }
@@ -426,10 +605,15 @@ export class WebSocketMiner {
      */
     getStats() {
         const uptimeSeconds = Math.floor((Date.now() - this.stats.uptimeStart) / 1000);
+        
+        // Check actual WebSocket state for accurate connection status
+        const wsState = this.ws ? this.ws.readyState : WebSocket.CLOSED;
+        const actuallyConnected = wsState === WebSocket.OPEN && this.connected;
 
         return {
-            connected: this.connected,
+            connected: actuallyConnected,
             registered: this.registered,
+            ws_state: wsState, // 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
             node_id: this.config.node_id,
             sui_address: this.config.sui_address,
             uptime_seconds: uptimeSeconds,

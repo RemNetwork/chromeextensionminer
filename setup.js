@@ -27,14 +27,20 @@ document.addEventListener('DOMContentLoaded', init);
 function init() {
     console.log('[Setup] Initializing setup wizard...');
 
-    // Generate node ID
-    config.node_id = generateUUID();
-
     // Setup event listeners
     setupEventListeners();
 
-    // Load existing config if any
-    loadExistingConfig();
+    // Load existing config if any (CRITICAL: Must load BEFORE generating node_id)
+    // This ensures we preserve the existing node_id if config already exists
+    loadExistingConfig().then(() => {
+        // Only generate node_id if it doesn't exist after loading config
+        if (!config.node_id || config.node_id.trim() === '') {
+            config.node_id = generateUUID();
+            console.log('[Setup] Generated new node_id:', config.node_id);
+        } else {
+            console.log('[Setup] Preserved existing node_id:', config.node_id);
+        }
+    });
 }
 
 /**
@@ -85,20 +91,47 @@ function setupEventListeners() {
 
 /**
  * Load existing config if available
+ * CRITICAL FIX: This now preserves node_id from existing config
  */
 async function loadExistingConfig() {
     try {
         const response = await sendMessage({ type: 'getConfig' });
 
-        if (response.config && response.config.sui_address) {
-            console.log('[Setup] Found existing config');
+        if (response.config) {
+            console.log('[Setup] Found existing config:', {
+                has_node_id: !!response.config.node_id,
+                has_sui_address: !!response.config.sui_address
+            });
 
-            // Ask if user wants to reconfigure
-            if (confirm('You already have a miner configured. Do you want to reconfigure?')) {
-                // Start fresh
-            } else {
-                // Close this tab
-                window.close();
+            // CRITICAL FIX: Preserve ALL existing config values, especially node_id
+            if (response.config.node_id) {
+                config.node_id = response.config.node_id;
+                console.log('[Setup] Preserved existing node_id from config');
+            }
+            
+            // Preserve other config values
+            if (response.config.sui_address) {
+                config.sui_address = response.config.sui_address;
+            }
+            if (response.config.max_ram_gb) {
+                config.max_ram_gb = response.config.max_ram_gb;
+            }
+            if (response.config.referral_address) {
+                config.referral_address = response.config.referral_address;
+            }
+            if (response.config.coordinator_url) {
+                config.coordinator_url = response.config.coordinator_url;
+            }
+
+            // Ask if user wants to reconfigure (only if fully configured)
+            if (response.config.sui_address && response.config.node_id) {
+                if (confirm('You already have a miner configured. Do you want to reconfigure?')) {
+                    // User wants to reconfigure - keep existing node_id but allow changing other settings
+                    console.log('[Setup] User chose to reconfigure, preserving node_id:', config.node_id);
+                } else {
+                    // Close this tab
+                    window.close();
+                }
             }
         }
     } catch (error) {

@@ -1,12 +1,14 @@
 {
     "manifest_version": 3,
     "name": "REM Network Miner",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "description": "Decentralized Vector Mining for AI - Earn REM tokens by contributing RAM",
     "permissions": [
         "storage",
         "alarms",
-        "unlimitedStorage"
+        "unlimitedStorage",
+        "offscreen",
+        "tabs"
     ],
     "host_permissions": [
         "wss://api.getrem.online/*",
@@ -33,5 +35,11 @@
     },
     "content_security_policy": {
         "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-    }
+    },
+    "web_accessible_resources": [
+        {
+            "resources": ["memory-tab.html", "memory-tab.js"],
+            "matches": ["<all_urls>"]
+        }
+    ]
 }
