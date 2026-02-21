@@ -160,6 +160,72 @@ export class VectorEngine {
     }
 
     /**
+     * Fetch vectors by document IDs
+     * @param {string} collectionId - Collection identifier
+     * @param {Array<string>} docIds - Document IDs to fetch
+     * @returns {Array<{doc_id: string, vector: Array<number>}>}
+     */
+    fetchVectors(collectionId, docIds) {
+        const results = [];
+
+        for (const [key, collection] of this.collections) {
+            if (collection.collectionId !== collectionId) continue;
+
+            for (const docId of docIds) {
+                const idx = collection.docIds.indexOf(docId);
+                if (idx !== -1) {
+                    results.push({
+                        doc_id: docId,
+                        vector: Array.from(collection.vectors[idx])
+                    });
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Delete vectors by document IDs
+     * @param {string} collectionId - Collection identifier
+     * @param {Array<string>} docIds - Document IDs to delete
+     * @returns {Promise<number>} Number of vectors deleted
+     */
+    async deleteVectors(collectionId, docIds) {
+        let deletedCount = 0;
+        const docIdSet = new Set(docIds);
+
+        for (const [key, collection] of this.collections) {
+            if (collection.collectionId !== collectionId) continue;
+
+            const newVectors = [];
+            const newDocIds = [];
+            const newMetadata = [];
+
+            for (let i = 0; i < collection.docIds.length; i++) {
+                if (docIdSet.has(collection.docIds[i])) {
+                    deletedCount++;
+                } else {
+                    newVectors.push(collection.vectors[i]);
+                    newDocIds.push(collection.docIds[i]);
+                    if (collection.metadata[i]) {
+                        newMetadata.push(collection.metadata[i]);
+                    }
+                }
+            }
+
+            collection.vectors = newVectors;
+            collection.docIds = newDocIds;
+            collection.metadata = newMetadata;
+
+            await this.saveCollection(key);
+        }
+
+        console.log(`[VectorEngine] Deleted ${deletedCount} vectors from ${collectionId}`);
+        return deletedCount;
+    }
+
+    /**
      * Get collection key (handles sharding)
      */
     getCollectionKey(collectionId, shardId) {
@@ -264,76 +330,6 @@ export class VectorEngine {
         }
         await Promise.all(promises);
         console.log(`[VectorEngine] Saved ${promises.length} collections`);
-    }
-
-    /**
-     * Fetch vectors by their document IDs
-     * @param {string} collectionId - Collection identifier
-     * @param {Array<string>} docIds - Document IDs to fetch
-     * @param {string|null} shardId - Optional shard ID
-     * @returns {Array<{doc_id: string, values: Array<number>}>}
-     */
-    fetchVectors(collectionId, docIds, shardId = null) {
-        const key = this.getCollectionKey(collectionId, shardId);
-        const collection = this.collections.get(key);
-
-        if (!collection) {
-            return [];
-        }
-
-        const results = [];
-        for (const docId of docIds) {
-            const idx = collection.docIds.indexOf(docId);
-            if (idx !== -1) {
-                results.push({
-                    doc_id: docId,
-                    values: Array.from(collection.vectors[idx])
-                });
-            }
-        }
-
-        console.log(`[VectorEngine] Fetched ${results.length}/${docIds.length} vectors from ${key}`);
-        return results;
-    }
-
-    /**
-     * Delete vectors by their document IDs
-     * @param {string} collectionId - Collection identifier
-     * @param {Array<string>} docIds - Document IDs to delete
-     * @param {string|null} shardId - Optional shard ID
-     * @returns {number} Number of vectors deleted
-     */
-    async deleteVectors(collectionId, docIds, shardId = null) {
-        const key = this.getCollectionKey(collectionId, shardId);
-        const collection = this.collections.get(key);
-
-        if (!collection) {
-            return 0;
-        }
-
-        const docIdSet = new Set(docIds);
-        const keepIndices = [];
-        let deletedCount = 0;
-
-        for (let i = 0; i < collection.docIds.length; i++) {
-            if (docIdSet.has(collection.docIds[i])) {
-                deletedCount++;
-            } else {
-                keepIndices.push(i);
-            }
-        }
-
-        if (deletedCount > 0) {
-            collection.vectors = keepIndices.map(i => collection.vectors[i]);
-            collection.docIds = keepIndices.map(i => collection.docIds[i]);
-            if (collection.metadata.length > 0) {
-                collection.metadata = keepIndices.map(i => collection.metadata[i]);
-            }
-            await this.saveCollection(key);
-        }
-
-        console.log(`[VectorEngine] Deleted ${deletedCount}/${docIds.length} vectors from ${key}`);
-        return deletedCount;
     }
 
     /**

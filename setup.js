@@ -33,12 +33,11 @@ function init() {
     // Load existing config if any (CRITICAL: Must load BEFORE generating node_id)
     // This ensures we preserve the existing node_id if config already exists
     loadExistingConfig().then(() => {
-        // Only generate node_id if it doesn't exist after loading config
-        if (!config.node_id || config.node_id.trim() === '') {
-            config.node_id = generateUUID();
-            console.log('[Setup] Generated new node_id:', config.node_id);
-        } else {
+        // Did not generate node_id if missing - let coordinator assign it
+        if (config.node_id) {
             console.log('[Setup] Preserved existing node_id:', config.node_id);
+        } else {
+            console.log('[Setup] No Node ID found. One will be assigned by the coordinator.');
         }
     });
 }
@@ -108,7 +107,7 @@ async function loadExistingConfig() {
                 config.node_id = response.config.node_id;
                 console.log('[Setup] Preserved existing node_id from config');
             }
-            
+
             // Preserve other config values
             if (response.config.sui_address) {
                 config.sui_address = response.config.sui_address;
@@ -209,8 +208,8 @@ function updateSummary() {
         document.getElementById('summaryReferral').textContent = 'Default (REM Network)';
     }
 
-    // Calculate estimates (simplified)
-    const ramMultiplier = config.max_ram_gb * 250; // ~250 REM per GB per epoch
+    // Calculate estimates (User requested ~10 REM for 15GB)
+    const ramMultiplier = config.max_ram_gb * 0.7; // ~10.5 at 15GB
     document.getElementById('estimateEpoch').textContent = `~${formatNumber(ramMultiplier)} REM`;
     document.getElementById('estimateDay').textContent = `~${formatNumber(ramMultiplier * 24)} REM`;
 }

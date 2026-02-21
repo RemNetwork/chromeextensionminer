@@ -56,16 +56,15 @@
                 <div class="ram-value">
                     <span id="ramValue">4</span> GB
                 </div>
-                <input type="range" id="ramSlider" min="1" max="128" value="4" step="1">
+                <input type="range" id="ramSlider" min="2" max="15" value="4" step="1">
                 <div class="ram-info">
-                    <span>1 GB (Min)</span>
-                    <span>128 GB (Max)</span>
+                    <span>2 GB (Min)</span>
+                    <span>15 GB (Max)</span>
                 </div>
-                <div class="alert alert-info" style="margin-top: 10px;">
-                    ℹ️ <strong>Multi-Context Allocation:</strong> Allocations >15GB use multiple offscreen contexts to bypass Chrome's per-process limit. Each context can handle up to 15GB.
-                </div>
-                <div class="alert alert-info">
-                    💡 More RAM = Higher rewards! Choose what your system can handle.
+                <!-- PRO TIP for multi-browser mining -->
+                <div class="alert alert-info" style="margin-top: 15px;">
+                    💡 <strong>Pro Tip:</strong> To maximize rewards, install this extension on multiple browsers
+                    (Chrome, Edge, Brave, etc.) and commit 15GB on each!
                 </div>
             </div>
 
@@ -80,7 +79,7 @@
             </button>
         </div>
 
-        <!-- Step 2: Wallet Setup (SIMPLIFIED) -->
+        <!-- Step 2: Wallet Setup -->
         <div class="step-content" id="step2">
             <h2>Sui Wallet Address</h2>
             <p class="step-description">Enter your Sui wallet address to receive rewards</p>
@@ -136,11 +135,11 @@
                 <div class="earnings-estimate">
                     <div class="estimate-item">
                         <div class="estimate-label">Per Epoch (1 hour)</div>
-                        <div class="estimate-value" id="estimateEpoch">~1,000 REM</div>
+                        <div class="estimate-value" id="estimateEpoch">~10 REM</div>
                     </div>
                     <div class="estimate-item">
                         <div class="estimate-label">Per Day (24 epochs)</div>
-                        <div class="estimate-value" id="estimateDay">~24,000 REM</div>
+                        <div class="estimate-value" id="estimateDay">~240 REM</div>
                     </div>
                 </div>
                 <small class="estimate-note">* Estimates based on network conditions and uptime</small>

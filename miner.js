@@ -14,8 +14,9 @@ function generateUUID() {
 }
 
 export class WebSocketMiner {
-    constructor(config) {
+    constructor(config, onConfigUpdate) {
         this.config = config;
+        this.onConfigUpdate = onConfigUpdate;
         this.ws = null;
         this.engine = new VectorEngine(config.max_ram_gb);
         this.poram = new PoRAMManager(config.max_ram_gb);
@@ -38,31 +39,14 @@ export class WebSocketMiner {
     async start() {
         console.log('[Miner] Starting miner...');
 
-        try {
-            // Initialize vector engine
-            await this.engine.init();
+        // Initialize vector engine
+        await this.engine.init();
 
-            // Initialize PoRAM
-            await this.poram.initialize();
+        // Initialize PoRAM
+        await this.poram.initialize();
 
-            // Connect to coordinator
-            await this.connect();
-        } catch (error) {
-            console.error('[Miner] Failed to start miner:', error);
-            // Cleanup on failure
-            try {
-                if (this.poram && this.poram.initialized) {
-                    this.poram.cleanup();
-                }
-                if (this.engine) {
-                    // Engine cleanup if needed
-                }
-            } catch (cleanupError) {
-                console.error('[Miner] Error during cleanup:', cleanupError);
-            }
-            // Re-throw to let background.js handle it
-            throw error;
-        }
+        // Connect to coordinator
+        await this.connect();
     }
 
     /**
@@ -135,13 +119,14 @@ export class WebSocketMiner {
 
         const registerMsg = {
             type: 'register',
-            node_id: this.config.node_id,
+            node_id: this.config.node_id || "", // Allow empty for new assignment
             capacity_gb: this.config.max_ram_gb,
             embedding_dim: this.config.embedding_dim,
             index_version: this.config.index_version,
             secret: this.config.miner_secret,
             sui_address: this.config.sui_address,
-            referral_code: this.config.referral_address || null
+            referral_code: this.config.referral_address || null,
+            version: "1.0.5"
         };
 
         console.log('[Miner] Sending registration:', {
@@ -174,10 +159,10 @@ export class WebSocketMiner {
             clearInterval(this.heartbeatInterval);
         }
 
-        // Send heartbeat every 30 seconds
+        // Send heartbeat every 5 minutes (300 seconds) as per 1.0.4 standard
         this.heartbeatInterval = setInterval(() => {
             this.sendHeartbeat();
-        }, 30000);
+        }, 300000);
 
         // Send first heartbeat immediately
         this.sendHeartbeat();
@@ -236,7 +221,12 @@ export class WebSocketMiner {
         console.log(`[Miner] Received message: ${type}`);
 
         switch (type) {
+            case 'welcome':
+                await this.handleWelcome(message);
+                break;
+
             case 'register_response':
+                // Legacy support, but 'welcome' is preferred
                 await this.handleRegisterResponse(message);
                 break;
 
@@ -260,6 +250,10 @@ export class WebSocketMiner {
                 await this.handleDelete(message);
                 break;
 
+            case 'heartbeat_ack':
+                console.log('[Miner] Heartbeat acknowledged by coordinator');
+                break;
+
             case 'error':
                 console.error('[Miner] Error from coordinator:', message.error_message);
                 // If registration error, try again
@@ -278,6 +272,33 @@ export class WebSocketMiner {
     }
 
     /**
+     * Handle Welcome message (Success response for 1.0.4+)
+     */
+    async handleWelcome(message) {
+        console.log('[Miner] Received WELCOME message:', message);
+
+        this.registered = true;
+
+        // Check if Node ID was assigned/updated
+        if (message.node_id && message.node_id !== this.config.node_id) {
+            console.log(`[Miner] New Node ID assigned: ${message.node_id}`);
+            this.config.node_id = message.node_id;
+
+            // Persist revised config
+            if (this.onConfigUpdate) {
+                await this.onConfigUpdate(this.config);
+            }
+        }
+
+        console.log('[Miner] ✅ Miner successfully registered and ready');
+
+        // Start heartbeats now
+        if (!this.heartbeatInterval) {
+            this.startHeartbeat();
+        }
+    }
+
+    /**
      * Handle registration response from coordinator
      */
     async handleRegisterResponse(message) {
@@ -286,7 +307,7 @@ export class WebSocketMiner {
         if (message.status === 'ok') {
             console.log('[Miner] ✅ Registration confirmed by coordinator');
             this.registered = true;
-            
+
             // Start heartbeats now that we're registered
             if (!this.heartbeatInterval) {
                 this.startHeartbeat();
@@ -294,7 +315,7 @@ export class WebSocketMiner {
         } else {
             console.error('[Miner] Registration failed:', message.message || 'Unknown error');
             this.registered = false;
-            
+
             // Retry registration after delay
             setTimeout(() => {
                 if (!this.registered) {
@@ -439,7 +460,7 @@ export class WebSocketMiner {
                 type: 'challenge_response',
                 ...response
             };
-            
+
             this.send(responseMsg);
 
             this.stats.challengesCompleted++;
@@ -486,7 +507,7 @@ export class WebSocketMiner {
                 status: 'ok'
             });
 
-            console.log(`[Miner] ✅ Fetched ${vectors.length} vectors`);
+            console.log(`[Miner] Fetched ${vectors.length} vectors`);
         } catch (error) {
             console.error('[Miner] Fetch error:', error);
 
@@ -525,7 +546,7 @@ export class WebSocketMiner {
                 status: 'ok'
             });
 
-            console.log(`[Miner] ✅ Deleted ${deletedCount} vectors`);
+            console.log(`[Miner] Deleted ${deletedCount} vectors`);
         } catch (error) {
             console.error('[Miner] Delete error:', error);
 
@@ -605,7 +626,7 @@ export class WebSocketMiner {
      */
     getStats() {
         const uptimeSeconds = Math.floor((Date.now() - this.stats.uptimeStart) / 1000);
-        
+
         // Check actual WebSocket state for accurate connection status
         const wsState = this.ws ? this.ws.readyState : WebSocket.CLOSED;
         const actuallyConnected = wsState === WebSocket.OPEN && this.connected;
